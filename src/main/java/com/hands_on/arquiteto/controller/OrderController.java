@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.hands_on.arquiteto.dto.OrderRequestDto;
 import com.hands_on.arquiteto.entity.Order;
 import com.hands_on.arquiteto.service.OrderService;
 
@@ -66,5 +67,19 @@ public class OrderController {
     @PostMapping
     public Order createOrder(@RequestParam BigDecimal amount) {
         return orderService.createOrder(amount);
+    }
+
+    @PostMapping("/stress")
+    public String stressTest() {
+
+        for (int i = 0; i < 1000; i++) {
+
+            OrderRequestDto request = new OrderRequestDto();
+            request.setAmount(new BigDecimal(100.0));
+
+            orderService.createOrder(request.getAmount());
+        }
+
+        return "1000 pedidos enviados!";
     }
 }

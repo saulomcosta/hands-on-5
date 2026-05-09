@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import com.hands_on.arquiteto.entity.Order;
 import com.hands_on.arquiteto.messaging.publisher.OrderEventPublisher;
 import com.hands_on.arquiteto.repository.OrderRepository;
+import jakarta.transaction.Transactional;
 
 /**
  * ======== CAMADA: SERVICE (Regra de Negócio / Domínio) =========
@@ -96,6 +97,7 @@ public class OrderService {
      * @param amount valor monetário do pedido
      * @return Order criada e persistida
      */
+    @Transactional
     public Order createOrder(BigDecimal amount) {
         /**
          * 1. Criação da entidade em memória
@@ -124,4 +126,5 @@ public class OrderService {
          */
         return savedOrder;
     }
+
 }

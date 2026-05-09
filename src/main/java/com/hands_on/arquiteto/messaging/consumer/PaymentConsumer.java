@@ -75,28 +75,99 @@ public class PaymentConsumer {
     }
 
 
+
     /**
-     * ================================================================================= 📥
-     * CONSUMIDOR PRINCIPAL — ORDER CREATED EVENT
-     * =================================================================================
+     * ========== 📥 CONSUMIDOR PRINCIPAL — ORDER CREATED EVENT ==========
      *
      * 🧠 Este método reage ao evento:
      *
      * 👉 "Um pedido foi criado"
      *
-     * --------------------------------------------------------------------------------- 🔁 FLUXO
-     * EXECUTADO ---------------------------------------------------------------------------------
+     * ---------------- 🔁 FLUXO EXECUTADO ------------
      *
      * 1. Recebe OrderCreatedEvent 2. Processa pagamento 3. Publica PaymentProcessedEvent
      *
-     * --------------------------------------------------------------------------------- 🎯 OBJETIVO
-     * ---------------------------------------------------------------------------------
+     * -------------- 🎯 OBJETIVO --------------
      *
      * Converter um evento de criação de pedido em um evento de pagamento processado, mantendo o
      * sistema desacoplado e baseado em eventos de domínio.
      *
+     * ------------- 🚀 CONCURRENCY (ESCALABILIDADE CRÍTICA) ------------
+     *
+     * Este consumer utiliza:
+     *
+     * 👉 concurrency = "5-20"
+     *
+     * O que isso significa:
+     *
+     * ✅ 5 → número mínimo de consumidores (threads) sempre ativos ✅ 20 → número máximo de
+     * consumidores sob alta demanda
+     *
+     * ----------- 🔄 COMPORTAMENTO EM TEMPO DE EXECUÇÃO ----------
+     *
+     * - A aplicação inicia com 5 consumidores processando mensagens em paralelo - Se houver
+     * crescimento da fila (READY ↑), o Spring aumenta automaticamente o número de consumidores -
+     * Pode escalar dinamicamente até 20 consumidores - Quando a carga diminui, volta gradualmente
+     * para 10
+     *
+     * 👉 Isso implementa auto scaling interno baseado em pressão da fila
+     *
+     * ---------- 📈 IMPACTO NA PERFORMANCE ---------
+     *
+     * Mais consumidores: ✅ aumentam significativamente o throughput (mensagens/segundo) ✅ reduzem
+     * tempo total de processamento da fila ✅ diminuem backlog (READY ↓)
+     *
+     * Porém: ⚠️ aumentam uso de CPU ⚠️ aumentam concorrência no banco (UPDATE / SELECT) ⚠️ aumentam
+     * pressão em serviços externos (gateway de pagamento)
+     *
+     * ----------- ⚠️ ATENÇÃO: ESTE É UM FLUXO CRÍTICO (PAGAMENTO) ----------
+     *
+     * Diferente do envio de e-mail, este consumer executa uma operação sensível:
+     *
+     * 👉 cobrança / processamento financeiro
+     *
+     * Portanto:
+     *
+     * ❗ ESTE CONSUMER PRECISA SER IDEMPOTENTE
+     *
+     * Mesmo evento NÃO pode gerar: ❌ cobrança duplicada ❌ inconsistência financeira
+     *
+     * 👉 Boa prática:
+     *
+     * - Verificar status do pedido antes de processar - Se já estiver "PROCESSED" → NÃO executar
+     * novamente
+     *
+     * ------------ ✅ QUANDO USAR ALTA CONCURRENCY -----------
+     *
+     * ✔ Sistemas com alto volume de pedidos (alta taxa de criação) ✔ Processamento intensivo que
+     * precisa escalar horizontalmente ✔ Cenários com backlog frequente (READY alto)
+     *
+     * ----------- ❌ QUANDO EVITAR ALTA CONCURRENCY -----------
+     *
+     * ✖ Integrações com sistemas lentos (ex: gateway que limita requisições) ✖ Banco com alto nível
+     * de contenção (lock/transactions) ✖ Falta de idempotência (risco de duplicidade)
+     *
+     * ----------- ⚠️ RISCOS SE MAL CONFIGURADO ----------
+     *
+     * - Concorrência elevada sem controle → condição de corrida (race condition) - Atualizações
+     * simultâneas no mesmo pedido - Deadlocks no banco - Sobrecarga de APIs externas
+     *
+     * ----------- ⚙️ BOAS PRÁTICAS -------------
+     *
+     * ✔ Garantir idempotência (ESSENCIAL) ✔ Utilizar controle de concorrência (optimistic locking /
+     * versionamento) ✔ Monitorar métricas: - Queue READY - Unacked - Ack rate ✔ Ajustar valores
+     * conforme carga real (tuning contínuo)
+     *
+     * ------------ 💡 ANALOGIA ------------
+     *
+     * - 5 consumidores → equipe fixa de processamento - até 20 consumidores → reforço em momentos
+     * de alta demanda
+     *
+     * 👉 Aqui você está escalando um serviço de pagamento em tempo real
+     *
      */
-    @RabbitListener(queues = RabbitConfig.PAYMENT_QUEUE)
+
+    @RabbitListener(queues = RabbitConfig.PAYMENT_QUEUE, concurrency = "5-20")
     public void process(OrderCreatedEvent event) {
 
         // ✅ 1. Processa pagamento (simulado)
@@ -138,8 +209,17 @@ public class PaymentConsumer {
 
     private void processPayment(OrderCreatedEvent event) {
         // Simulação de processamento de pagamento
-        System.out.println("Processando pagamento para pedido: " + event.orderId());
+
+        try {
+            System.out.println("Processando pagamento: " + event.orderId());
+            Thread.sleep(200); // simula processamento lento
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        System.out.println("Pagamento concluído");
     }
+
 
 
     /**

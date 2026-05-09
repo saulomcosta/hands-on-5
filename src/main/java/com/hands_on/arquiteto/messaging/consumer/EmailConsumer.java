@@ -67,8 +67,9 @@ public class EmailConsumer {
         this.rabbitTemplate = rabbitTemplate;
     }
 
+
     /**
-     * ============= 📥 CONSUMIDOR PRINCIPAL — PAYMENT PROCESSED EVENT =============
+     * ====== 📥 CONSUMIDOR PRINCIPAL — PAYMENT PROCESSED EVENT =====
      *
      * 🧠 Reage ao evento:
      *
@@ -82,15 +83,69 @@ public class EmailConsumer {
      *
      * Notificar o cliente que o pagamento do pedido foi concluído.
      *
+     * --------------- 🚀 CONCURRENCY (ESCALABILIDADE) ---------------
+     *
+     * Este consumer utiliza:
+     *
+     * 👉 concurrency = "1-5"
+     *
+     * O que isso significa:
+     *
+     * ✅ 1 → número mínimo de consumidores (threads) sempre ativos ✅ 5 → número máximo de
+     * consumidores sob alta demanda
+     *
+     * ---------------- 🔄 COMPORTAMENTO EM TEMPO DE EXECUÇÃO ----------------
+     *
+     * - A aplicação inicia com 1 consumers processando mensagens em paralelo - Se a fila começar a
+     * crescer (READY ↑), o Spring cria novos consumers automaticamente - Pode escalar dinamicamente
+     * até 5 consumers - Quando a carga diminui, volta gradualmente para 1
+     *
+     * 👉 Isso é auto scaling interno baseado em demanda (elasticidade)
+     *
+     * ---------------- 📈 IMPACTO NA PERFORMANCE ----------------
+     *
+     * Mais consumers: ✅ aumentam throughput (mais msgs/segundo) ✅ reduzem tempo total de
+     * processamento
+     *
+     * Porém: ⚠️ aumentam uso de CPU ⚠️ aumentam concorrência no banco/API externa
+     *
+     * ---------------- ✅ QUANDO USAR ESSE PADRÃO ----------------
+     *
+     * ✔ Processos leves ou moderados (ex: envio de e-mail, notificações) ✔ Sistemas com variação de
+     * carga ✔ Quando você quer elasticidade automática
+     *
+     * ---------------- ❌ QUANDO EVITAR ----------------
+     *
+     * ✖ Processos pesados ou críticos (ex: pagamento, transação financeira) ✖ Operações que não
+     * suportam concorrência (ex: acesso concorrente sem controle) ✖ Quando o downstream (SMTP/API)
+     * não suporta paralelismo
+     *
+     * ---------------- ⚠️ BOAS PRÁTICAS ----------------
+     *
+     * ✔ Garantir idempotência (evitar envio duplicado de e-mail) ✔ Monitorar métricas (Queue Ready,
+     * Unacked, Ack rate) ✔ Ajustar valores baseado em carga real (tuning contínuo)
+     *
+     * 💡 ANALOGIA:
+     *
+     * - 1 consumidores → equipe fixa (baseline) - até 5 consumidores → contratação sob demanda
+     * (pico de trabalho)
+     *
      */
-    @RabbitListener(queues = RabbitConfig.EMAIL_QUEUE)
+
+    @RabbitListener(queues = RabbitConfig.EMAIL_QUEUE, concurrency = "1-5")
     public void sendEmail(PaymentProcessedEvent event) {
 
         // ✅ Executa envio de e-mail
         send(event);
 
-        // 👉 Ideal: log estruturado (ex: log.info)
-        System.out.println("📧 E-mail enviado | orderId=" + event.orderId());
+        try {
+            // 👉 Ideal: log estruturado (ex: log.info)
+            System.out.println("📧 E-mail enviado | orderId=" + event.orderId());
+            Thread.sleep(200); // simula processamento lento
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
     }
 
     /**

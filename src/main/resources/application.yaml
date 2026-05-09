@@ -107,7 +107,70 @@ spring:
             # 2ª tentativa → 2s
             # 3ª tentativa → 4
             multiplier: 2.0
-          default-requeue-rejected: false
+            # ==== 🚀 CONCURRENCY (ESCALABILIDADE DO CONSUMER) ====
+            #
+            # Define o NÚMERO MÍNIMO de consumidores (threads)
+            # que irão consumir mensagens em paralelo.
+            #
+            # Exemplo:
+            # concurrency: 5 → sempre terá pelo menos 5 consumers ativos
+            #
+            # 👉 Impacto direto:
+            # - Mais paralelismo
+            # - Mais throughput (ou vazão) (msgs/s)
+            # - Mais uso de CPU
+            #
+            # ✅ QUANDO USAR:
+            # - Filas com alta carga (ex: payment, processamento pesado)
+            # - Quando há backlog (muitas mensagens em READY)
+            # - Quando seu sistema não está acompanhando o volume
+            #
+            # ❌ QUANDO NÃO USAR:
+            # - Processos leves (ex: envio de email simples)
+            # - Sistemas com pouca carga
+            # - Quando o banco/CPU já está no limite
+            #
+            # ⚠️ CUIDADO:
+            # - Aumentar demais pode causar:
+            #   → contenção no banco
+            #   → saturação de CPU
+            #   → gargalos downstream (APIs externas)
+            #
+          concurrency: 5
+          # ===== ⚡ MAX-CONCURRENCY (ESCALA DINÂMICA) =====
+          #
+          # Define o LIMITE MÁXIMO de consumidores que podem ser criados dinamicamente.
+          #
+          # Exemplo:
+          # min = 5 (concurrency)
+          # max = 10 (max-concurrency)
+          #
+          # 👉 comportamento:
+          #
+          # - Começa com 5 consumers
+          # - Se a fila crescer (READY ↑), o Spring cria mais consumidores
+          # - Pode chegar até 10 automaticamente
+          #
+          # 👉 Isso é AUTO-SCALING dentro do próprio serviço
+          #
+          # ✅ QUANDO USAR:
+          # - Sistemas com carga variável
+          # - Picos de tráfego (ex: Black Friday, batch, eventos)
+          # - Quando você quer elasticidade sem Kubernetes
+          #
+          # ❌ QUANDO NÃO USAR:
+          # - Carga constante previsível
+          # - Sistemas sensíveis a concorrência (ex: transações críticas)
+          #
+          # ⚠️ IMPORTANTE:
+          # - Só cresce se houver backlog (READY > 0)
+          # - Depende da performance do processamento
+          #
+          # 💡 ANALOGIA:
+          # concurrency → equipe base
+          # max-concurrency → contratar temporários quando aumenta demanda
+          #
+          max-concurrency: 10
 
   # =========================
   # CONSOLE DO H2 (DESENVOLVIMENTO)
